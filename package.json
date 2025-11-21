@@ -1,5 +1,5 @@
 {
-  "name": "@meting/server",
+  "name": "@meting/serverlessless",
   "version": "1.10.0",
   "main": "src/index.js",
   "type": "module",

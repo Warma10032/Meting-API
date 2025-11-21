@@ -1,4 +1,4 @@
-name = "meting-api"
+name = "meting-api-serverless"
 main = "src/index.js"
 compatibility_date = "2025-11-21"
 workers_dev = true

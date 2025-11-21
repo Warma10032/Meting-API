@@ -1,4 +1,4 @@
-# Meting-API (Cloudflare Worker)
+# meting-api-serverless (Cloudflare Worker)
 
 基于 Hono 的多平台音乐 API 代理，运行在 Cloudflare Workers，封装 [@meting/core](https://www.npmjs.com/package/@meting/core) 对网易云 / QQ 音乐 / 酷狗 / 百度 / 酷我提供统一接口。
 
