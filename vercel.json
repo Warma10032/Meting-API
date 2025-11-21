@@ -1,9 +1,5 @@
 {
-  "functions": {
-    "api/edge.js": {
-      "runtime": "edge"
-    }
-  },
+  "version": 2,
   "routes": [
     {
       "src": "/(.*)",
