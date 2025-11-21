@@ -1,14 +1,15 @@
-import config from '../config.js'
 import { html } from 'hono/html'
+import { loadConfig } from '../config.js'
 
 export default async (c) => {
-  // 1. 初始化参数
+  const config = loadConfig(c.env, c.req.url)
+  const baseUrl = config.meting.url || new URL(c.req.url).origin
+
   const query = c.req.query()
   const server = query.server || 'netease'
   const type = query.type || 'search'
   const id = query.id || 'hello'
 
-  // 2. 生成 HTML
   return c.html(html`
 <html>
 <head>
@@ -22,7 +23,7 @@ export default async (c) => {
     server="${server}"
     type="${type}"
     id="${id}"
-    api="${config.meting.url}/api?server=:server&type=:type&id=:id&r=:r"
+    api="${baseUrl}/api?server=:server&type=:type&id=:id&r=:r"
   />
 </body>
 </html>

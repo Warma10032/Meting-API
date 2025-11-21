@@ -1,359 +1,92 @@
-# Meting-API
+# Meting-API (Cloudflare Worker)
 
-基于 Hono.js 的多平台音乐 API 代理服务,封装 [@meting/core](https://www.npmjs.com/package/@meting/core) 提供的统一音乐 API。
+基于 Hono 的多平台音乐 API 代理，运行在 Cloudflare Workers，封装 [@meting/core](https://www.npmjs.com/package/@meting/core) 对网易云 / QQ 音乐 / 酷狗 / 百度 / 酷我提供统一接口。
 
-## 特性
-
-- 🎵 支持多个音乐平台:网易云、QQ音乐、酷狗、百度、酷我
-- 🚀 基于 Hono.js 高性能框架
-- 💾 内置 LRU 缓存机制,减少上游 API 调用
-- 🔐 HMAC-SHA1 令牌鉴权,保护敏感接口
-- 🐳 Docker 部署支持
-- 📝 结构化 JSON 日志输出
-
-## 支持的平台
-
-| 平台 | server 参数 | 说明 |
-|------|------------|------|
-| 网易云音乐 | `netease` | - |
-| QQ音乐 | `tencent` | - |
-| 酷狗音乐 | `kugou` | - |
-| 百度音乐 | `baidu` | - |
-| 酷我音乐 | `kuwo` | - |
+## 功能特性
+- 🎵 多平台音乐数据透传（搜索、歌曲、专辑、歌单、歌词、封面、播放链接）
+- 🔐 HMAC-SHA1 鉴权保护敏感接口（url/pic/lrc）
+- 💾 内置 LRU 缓存减少上游调用
+- 🍪 按 referrer 白名单决定是否挂载平台 Cookie
+- 🧪 内置 `/demo` 页面，直接用 Meting + APlayer 预览
 
 ## 快速开始
+1. 安装依赖  
+   ```bash
+   npm install
+   # 或 pnpm install / yarn install
+   ```
+2. 本地预览（默认监听 8787）：  
+   ```bash
+   npx wrangler dev
+   ```
+3. 部署到 Cloudflare Workers：  
+   ```bash
+   npx wrangler deploy
+   ```
+4. 访问示例  
+   - API: `https://<your-worker>/api?server=netease&type=search&id=hello`  
+   - Demo: `https://<your-worker>/demo?server=netease&type=search&id=hello`
 
-### 一键部署
+### Vercel Edge 部署
+- 项目已提供 `api/edge.js` 与 `vercel.json`，把本仓库直接部署到 Vercel 即可。
+- 所有路由通过 `vercel.json` 重写到 Edge Function，访问路径保持与 Worker 一致(`/api`、`/demo`)。
+- 环境变量在 Vercel Dashboard 中配置同名项（`METING_TOKEN` 建议放 Secrets）。
+- 本地验证可用 `vercel dev`。
 
-|平台|链接|
-|---|---|
-|Koyeb|[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?name=meting-api&type=docker&image=ghcr.io%2Fmetowolf%2Fmeting-api%3Alatest&instance_type=free&regions=was&instances_min=0&autoscaling_sleep_idle_delay=300&env%5BMETING_URL%5D=https%3A%2F%2F%7B%7B+KOYEB_PUBLIC_DOMAIN+%7D%7D&ports=80%3Bhttp%3B%2F&hc_protocol%5B80%5D=tcp&hc_grace_period%5B80%5D=5&hc_interval%5B80%5D=30&hc_restart_limit%5B80%5D=3&hc_timeout%5B80%5D=5&hc_path%5B80%5D=%2F&hc_method%5B80%5D=get)|
+### 前端接入 (MetingJS/APlayer)
+- 在客户端只需把 `meting_api` 指向本服务的 `/api`，无需修改 meting.js 源码。示例：  
+  `meting_api: http://127.0.0.1:8787/api?server=:server&type=:type&id=:id`
+- APlayer/Meting 会将占位符 `:server/:type/:id` 替换为组件传入的值，因此你的 Worker/Vercel 部署可以直接作为后端 API。
 
+## 环境变量清单
+在 `wrangler.toml` 中留占位，正式值请用 `wrangler secret put <NAME>` 或 Cloudflare Dashboard 的环境变量/Secret 管理。
 
-### 本地运行
+| 变量名 | 默认值 | 说明 |
+|--------|--------|------|
+| `HTTP_PREFIX` | `` | 可选路由前缀，留空表示根路径 |
+| `METING_URL` | - | 对外可访问的基地址，用于生成回调链接；缺省时使用请求的 origin+前缀 |
+| `METING_TOKEN` | `token` | HMAC 鉴权密钥，建议设置为 Secret |
+| `METING_COOKIE_ALLOW_HOSTS` | `` | 允许携带平台 Cookie 的 referrer host 白名单（逗号分隔，留空表示不限制） |
+| `METING_COOKIE_NETEASE` | `` | 网易云 Cookie（可选，带登录态的数据） |
+| `METING_COOKIE_TENCENT` | `` | QQ 音乐 Cookie（可选） |
+| `METING_COOKIE_KUGOU` | `` | 酷狗 Cookie（可选） |
+| `METING_COOKIE_BAIDU` | `` | 百度 Cookie（可选） |
+| `METING_COOKIE_KUWO` | `` | 酷我 Cookie（可选） |
+| `METING_COOKIE` | `` | 通用 Cookie 兜底，平台专用值为空时使用 |
 
-```bash
-# 安装依赖
-yarn install
+## API
+基础路径：`/api`
 
-# 配置环境变量(可选)
-cp .env.example .env
-# 编辑 .env 文件配置参数
+**请求参数**
 
-# 开发模式(热重载)
-yarn dev
+| 参数 | 必填 | 说明 |
+|------|------|------|
+| `server` | 是 | `netease` / `tencent` / `kugou` / `baidu` / `kuwo` |
+| `type` | 是 | `search` / `song` / `album` / `artist` / `playlist` / `lrc` / `url` / `pic` |
+| `id` | 是 | 资源 ID |
+| `token` / `auth` | 部分 | `lrc` / `url` / `pic` 需要鉴权 |
 
-# 生产模式
-yarn start
-```
+**返回**
+- `search`/`song`/`album`/`artist`/`playlist`: JSON 数组  
+- `lrc`: LRC 文本  
+- `url`/`pic`: 302 重定向到真实资源
 
-### Docker 部署
+## 鉴权计算
+`auth = HMAC-SHA1(METING_TOKEN, server + type + id)`
 
-```bash
-# 构建镜像
-docker build -t meting-api .
+示例（Node.js）：
+```js
+import { createHmac } from 'crypto'
 
-# 运行容器
-docker run -d \
-  -p 80:80 \
-  -e METING_URL=https://your-domain.com \
-  -e METING_TOKEN=your-secret-token \
-  --name meting-api \
-  meting-api
-```
-
-使用 Docker Compose:
-
-```yaml
-version: '3.8'
-services:
-  meting-api:
-    image: ghcr.io/metowolf/meting-api:latest
-    ports:
-      - "80:80"
-    environment:
-      - METING_URL=https://your-domain.com
-      - METING_TOKEN=your-secret-token
-    restart: unless-stopped
-```
-
-## HTTPS 配置
-
-### 开发环境
-
-使用自签名证书进行本地调试:
-
-```bash
-mkdir -p certs
-openssl req -x509 -nodes -days 365 \
-  -newkey rsa:2048 \
-  -keyout certs/local.key \
-  -out certs/local.crt \
-  -subj "/CN=localhost"
-```
-
-在启动服务时配置:
-
-```bash
-HTTPS_ENABLED=true \
-SSL_KEY_PATH=certs/local.key \
-SSL_CERT_PATH=certs/local.crt \
-yarn start
-```
-
-### 生产环境
-
-推荐使用 [Let's Encrypt](https://letsencrypt.org/) 提供的免费证书,通过 [Certbot](https://certbot.eff.org/) 自动签发与续期。例如在 Nginx 部署的服务器上:
-
-```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot certonly --nginx -d your-domain.com
-```
-
-证书获取后,将 `fullchain.pem` 和 `privkey.pem` 文件路径配置到对应环境变量。
-
-### Docker HTTPS 部署示例
-
-```bash
-docker run -d \
-  -p 80:80 \
-  -p 443:443 \
-  -v /etc/letsencrypt/live/your-domain.com:/certs:ro \
-  -e HTTPS_ENABLED=true \
-  -e SSL_KEY_PATH=/certs/privkey.pem \
-  -e SSL_CERT_PATH=/certs/fullchain.pem \
-  -e METING_URL=https://your-domain.com \
-  --name meting-api \
-  meting-api
-```
-
-### 反向代理推荐
-
-生产环境可搭配 Nginx 或 Caddy 作为反向代理,实现自动证书管理和负载均衡:
-- [Nginx HTTPS 配置示例](https://docs.nginx.com/nginx/admin-guide/security-controls/terminating-ssl-http/)
-- [Caddy 自动 HTTPS 说明](https://caddyserver.com/docs/automatic-https)
-
-
-## 环境变量配置
-
-创建 `.env` 文件或通过环境变量传递:
-
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| `HTTP_PREFIX` | HTTP 路由前缀 | `` (空) |
-| `HTTP_PORT` | HTTP 服务监听端口 | `80` |
-| `HTTPS_ENABLED` | 是否启用 HTTPS 服务 | `false` |
-| `HTTPS_PORT` | HTTPS 服务监听端口 | `443` |
-| `SSL_KEY_PATH` | HTTPS 私钥文件路径 | - |
-| `SSL_CERT_PATH` | HTTPS 证书文件路径 | - |
-| `METING_URL` | API 服务的公网访问地址(用于生成回调 URL) | - |
-| `METING_TOKEN` | HMAC 签名密钥 | `token` |
-| `METING_COOKIE_ALLOW_HOSTS` | 允许使用 cookie 的 referrer 域名白名单(逗号分隔) | `` (空,不限制) |
-| `METING_COOKIE_NETEASE` | 网易云音乐 Cookie | - |
-| `METING_COOKIE_TENCENT` | QQ音乐 Cookie | - |
-| `METING_COOKIE_KUGOU` | 酷狗音乐 Cookie | - |
-| `METING_COOKIE_BAIDU` | 百度音乐 Cookie | - |
-| `METING_COOKIE_KUWO` | 酷我音乐 Cookie | - |
-
-## API 接口文档
-
-### 基础接口
-
-```
-GET /api
-```
-
-### 请求参数
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `server` | string | 是 | 音乐平台:`netease`/`tencent`/`kugou`/`baidu`/`kuwo` |
-| `type` | string | 是 | 操作类型:`search`/`song`/`album`/`artist`/`playlist`/`lrc`/`url`/`pic` |
-| `id` | string | 是 | 资源 ID |
-| `token` 或 `auth` | string | 条件 | 认证令牌(仅 `lrc`/`url`/`pic` 类型需要) |
-
-### 操作类型说明
-
-| type | 说明 | 需要鉴权 | 返回格式 |
-|------|------|----------|----------|
-| `search` | 搜索歌曲 | 否 | JSON 数组 |
-| `song` | 获取歌曲详情 | 否 | JSON 数组 |
-| `album` | 获取专辑 | 否 | JSON 数组 |
-| `artist` | 获取歌手 | 否 | JSON 数组 |
-| `playlist` | 获取歌单 | 否 | JSON 数组 |
-| `lrc` | 获取歌词 | 是 | 纯文本(LRC 格式) |
-| `url` | 获取播放链接 | 是 | 302 重定向 |
-| `pic` | 获取封面图片 | 是 | 302 重定向 |
-
-### 响应格式
-
-**列表数据** (search/song/album/artist/playlist):
-
-```json
-[
-  {
-    "title": "歌曲名称",
-    "author": "艺术家1 / 艺术家2",
-    "url": "https://your-domain.com/api?server=netease&type=url&id=xxx&auth=xxx",
-    "pic": "https://your-domain.com/api?server=netease&type=pic&id=xxx&auth=xxx",
-    "lrc": "https://your-domain.com/api?server=netease&type=lrc&id=xxx&auth=xxx"
-  }
-]
-```
-
-**歌词数据** (lrc):
-
-```
-[00:00.000] 歌词第一行
-[00:05.123] 歌词第二行 (翻译内容)
-[00:10.456] 歌词第三行
-```
-
-**音频/图片** (url/pic):
-- 成功:302 重定向到实际资源 URL
-- 失败:404 Not Found
-
-### 请求示例
-
-搜索歌曲:
-```bash
-curl "http://localhost:80/api?server=netease&type=search&id=周杰伦"
-```
-
-获取歌曲详情:
-```bash
-curl "http://localhost:80/api?server=netease&type=song&id=歌曲ID"
-```
-
-获取歌词(需要 token):
-```bash
-curl "http://localhost:80/api?server=netease&type=lrc&id=歌曲ID&auth=计算的token"
-```
-
-### 鉴权机制
-
-敏感操作(`lrc`、`url`、`pic`)需要提供 HMAC-SHA1 签名的 token:
-
-```javascript
-// Token 计算公式
-token = HMAC-SHA1(METING_TOKEN, server + type + id)
-```
-
-示例(使用 Node.js):
-```javascript
-const crypto = require('crypto');
-
-function generateToken(server, type, id, secret = 'token') {
-  const message = `${server}${type}${id}`;
-  return crypto.createHmac('sha1', secret).update(message).digest('hex');
-}
-
-const token = generateToken('netease', 'url', '123456');
+const auth = ({ server, type, id, secret = 'token' }) =>
+  createHmac('sha1', secret).update(`${server}${type}${id}`).digest('hex')
 ```
 
 ## 缓存策略
+- 缓存容量：1000 条
+- TTL：`url` 10 分钟，其余 1 小时
+- 未命中时响应头附带 `x-cache: miss`
 
-- 默认缓存容量:1000 条记录
-- 缓存时长:
-  - `url` 类型:10 分钟
-  - 其他类型:1 小时
-- 响应头 `x-cache`:
-  - `miss`:缓存未命中,调用上游 API
-  - 无此头:缓存命中
-
-## Cookie 配置
-
-部分音乐平台的 API 需要登录态才能访问完整数据。可以通过以下两种方式配置 Cookie:
-
-### 方式一:环境变量(推荐)
-
-通过环境变量 `METING_COOKIE_大写平台名` 配置:
-
-```bash
-# Docker 部署示例
-docker run -d \
-  -p 80:80 \
-  -e METING_COOKIE_NETEASE="your_netease_cookie" \
-  -e METING_COOKIE_TENCENT="your_tencent_cookie" \
-  --name meting-api \
-  meting-api
-```
-
-### 方式二:文件存储
-
-在项目根目录 `cookie/` 文件夹下创建以平台名命名的文件(无扩展名):
-
-```
-cookie/
-  ├── netease    # 网易云音乐 Cookie
-  ├── tencent    # QQ音乐 Cookie
-  ├── kugou      # 酷狗音乐 Cookie
-  └── ...
-```
-
-每个文件存储对应平台的 Cookie 字符串。
-
-### Cookie 优先级
-
-1. 优先从环境变量读取(`METING_COOKIE_NETEASE` 等)
-2. 环境变量不存在时从文件读取(`cookie/netease` 等)
-
-### Cookie 缓存
-
-- Cookie 内容会在内存中缓存 5 分钟,减少文件系统读取
-- 使用文件存储时,修改 cookie 文件会自动清除缓存,立即生效
-- 环境变量方式需要重启服务才能更新
-
-### Referrer 白名单
-
-通过 `METING_COOKIE_ALLOW_HOSTS` 环境变量限制哪些来源可以使用 Cookie:
-
-```bash
-# 仅允许特定域名使用 Cookie
-METING_COOKIE_ALLOW_HOSTS=example.com,music.example.com
-```
-
-不设置时不限制来源。这可以防止 Cookie 被第三方滥用。
-
-## 错误处理
-
-API 返回标准 HTTP 状态码:
-
-| 状态码 | 说明 |
-|--------|------|
-| 200 | 请求成功 |
-| 302 | 重定向到资源(url/pic 类型) |
-| 400 | 参数错误 |
-| 401 | 鉴权失败 |
-| 404 | 资源不存在 |
-| 500 | 上游 API 调用失败或返回格式异常 |
-
-错误信息通过响应头 `x-error-message` 返回。
-
-## 开发
-
-### 代码规范
-
-项目使用 ESLint Standard 规范:
-
-```bash
-yarn lint
-```
-
-### 技术栈
-
-- **运行时**: Node.js 22+ (ES Module)
-- **框架**: [Hono](https://hono.dev/) 4.x
-- **核心库**: [@meting/core](https://www.npmjs.com/package/@meting/core) 1.5+
-- **缓存**: lru-cache 11.x
-- **日志**: pino (JSON 格式)
-- **加密**: hash.js (HMAC-SHA1)
-
-## 许可证
-
-MIT License
-
-## 相关项目
-
-- [@meting/core](https://www.npmjs.com/package/@meting/core) - Meting 核心库
-- [Meting](https://github.com/metowolf/Meting) - PHP 版本
+## Demo 页面
+`/demo` 使用 Meting + APlayer，可通过 query 参数调整：
+`server` / `type` / `id`，并通过 `api` 属性反向调用 `/api`。

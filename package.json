@@ -7,28 +7,24 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
     "lint": "eslint ."
   },
   "dependencies": {
-    "@hono/node-server": "^1.13.7",
     "@meting/core": "^1.6.0",
-    "dotenv": "^17.2.3",
     "hash.js": "^1.1.7",
     "hono": "^4.10.3",
-    "lru-cache": "^11.2.2",
-    "pino": "^10.0.0"
+    "lru-cache": "^11.2.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
-    "eslint": "^9.37.0",
+    "eslint": "^8.57.0",
     "eslint-config-standard": "17.1.0",
     "eslint-plugin-import": "2.32.0",
-    "eslint-plugin-n": "17.23.1",
-    "eslint-plugin-promise": "7.2.1",
+    "eslint-plugin-n": "16.6.2",
+    "eslint-plugin-promise": "6.1.1",
     "eslint-plugin-standard": "^5.0.0",
-    "nodemon": "^3.1.10",
-    "pino-pretty": "^13.1.1"
+    "wrangler": "^4.50.0"
   }
 }
